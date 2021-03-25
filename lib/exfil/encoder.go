@@ -15,26 +15,13 @@ import (
 	"golang.org/x/net/idna"
 )
 
-var (
-	Encoding = base64.StdEncoding.WithPadding(base64.NoPadding)
-	Mapping  = map[rune]rune{
-		'A': 'α', 'B': 'β', 'C': 'π', 'D': 'δ', 'E': 'ε', 'F': 'ϝ',
-		'G': 'γ', 'H': 'σ', 'I': 'ι', 'J': 'φ', 'K': 'κ', 'L': 'λ',
-		'M': 'χ', 'N': 'ν', 'O': 'ο', 'P': 'θ', 'Q': 'ψ', 'R': 'ρ',
-		'S': 'ς', 'T': 'τ', 'U': 'μ', 'V': 'ω', 'W': 'Ϟ', 'X': 'ξ',
-		'Y': 'υ', 'Z': 'ζ', '+': 'ƕ', '/': 'η',
-	}
-)
+// Encoding configures the base64 library
+var Encoding = base64.StdEncoding.WithPadding(base64.NoPadding)
 
-const partLength = 24
-
+// Encode binary data to subdomain(s)
 func Encode(data []byte) string {
 	buf := bytes.NewBuffer(nil)
 	b64w := base64.NewEncoder(Encoding, buf)
-	//b32w := base32.NewEncoder(base32.StdEncoding, buf)
-	//compressor, _ := zlib.NewWriterLevel(b32w, zlib.BestCompression)
-	//compressor.Write(data)
-	//compressor.Close()
 	b64w.Write(data)
 	b64w.Close()
 
@@ -60,8 +47,7 @@ func Encode(data []byte) string {
 	return encoded + ".l" + strconv.Itoa(len(encoded))
 }
 
-const blockSize = 64
-
+// GenHeaderMsg generates a header message, announcing the file to the server
 func GenHeaderMsg(id uint32, name string, size uint32) (string, error) {
 	id = id | 0x80000000
 	buf := bytes.NewBuffer(nil)
@@ -80,6 +66,7 @@ func GenHeaderMsg(id uint32, name string, size uint32) (string, error) {
 	return Encode(buf.Bytes()), nil
 }
 
+// GenContentMsg generates a content message, transporting a chunk of the file
 func GenContentMsg(id uint32, offset uint32, data []byte) (string, error) {
 	id = id & 0x7fffffff
 	buf := bytes.NewBuffer(nil)
@@ -98,6 +85,7 @@ func GenContentMsg(id uint32, offset uint32, data []byte) (string, error) {
 	return Encode(buf.Bytes()), nil
 }
 
+// EncodeFile transforms a file into a series of messages
 func EncodeFile(filePath string) (chan string, error) {
 	s, err := os.Stat(filePath)
 	if err != nil {
@@ -116,10 +104,11 @@ func EncodeFile(filePath string) (chan string, error) {
 	io.Copy(crc, f)
 	f.Seek(0, os.SEEK_SET)
 
-	return EncodeFileContent(crc.Sum32(), bn, uint32(sz), f), nil
+	return encodeFileContent(crc.Sum32(), bn, uint32(sz), f), nil
 }
 
-func EncodeFileContent(id uint32, name string, size uint32, data io.ReadCloser) chan string {
+// encodeFileContent implements the packetization of the file
+func encodeFileContent(id uint32, name string, size uint32, data io.ReadCloser) chan string {
 	c := make(chan string)
 	go func(c chan<- string, id, size uint32, data io.ReadCloser) {
 		defer close(c)
@@ -127,7 +116,6 @@ func EncodeFileContent(id uint32, name string, size uint32, data io.ReadCloser) 
 
 		msg, err := GenHeaderMsg(id, name, size)
 		if err != nil {
-			panic(err)
 			return
 		}
 
@@ -138,13 +126,11 @@ func EncodeFileContent(id uint32, name string, size uint32, data io.ReadCloser) 
 		for i = 0; i < size; i += blockSize {
 			n, err := data.Read(block)
 			if err != nil {
-				panic(err)
 				return
 			}
 
 			msg, err := GenContentMsg(id, i, block[0:n])
 			if err != nil {
-				panic(err)
 				return
 			}
 

@@ -2,7 +2,6 @@ package exfil
 
 import (
 	"bytes"
-	"encoding/base32"
 	"encoding/base64"
 	"io/ioutil"
 	"strconv"
@@ -11,17 +10,7 @@ import (
 	"golang.org/x/net/idna"
 )
 
-var (
-	ReverseMapping map[rune]rune
-)
-
-func init() {
-	ReverseMapping = make(map[rune]rune, len(Mapping))
-	for r, rr := range Mapping {
-		ReverseMapping[rr] = r
-	}
-}
-
+// Decode takes a partial domain and decodes it to a packat
 func Decode(payload string) (*packet, error) {
 	parts := strings.Split(payload, ".")
 	lenMarker := parts[len(parts)-1]
@@ -63,11 +52,4 @@ func Decode(payload string) (*packet, error) {
 	}
 
 	return packetFromBytes(data)
-}
-
-func DecodeMessage(raw string) (interface{}, error) {
-	var buffer = bytes.NewBuffer([]byte(raw[4:]))
-	var decoder = base32.NewDecoder(base32.StdEncoding, buffer)
-
-	return decoder, nil
 }

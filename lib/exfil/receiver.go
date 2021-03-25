@@ -97,6 +97,11 @@ func (r *receiver) AddData(id, offset uint32, data []byte) error {
 		return ERR_NOT_DECLARED
 	}
 
+	// cast to int because otherwise uint32 could overflow
+	if int(offset)+len(data) > int(f.size) {
+		return ERR_OUT_OF_BOUNDS
+	}
+
 	log.Infof("Data for file: %08x offset 0x%x", id, offset)
 	err := f.Add(offset, data)
 	if err != nil {
